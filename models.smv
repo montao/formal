@@ -1,0 +1,48 @@
+
+MODULE UART (proc)
+VAR
+	state : {idle, receive, transmit};
+	Rx : 0 .. 31;
+	Tx : 0 .. 31;
+ASSIGN
+	next (state) :=
+		case
+			proc = write : transmit;
+			proc = read : receive;
+			TRUE : idle;
+		esac;
+			next (Rx) :=
+		case
+			proc = read : 22; --uart receives something
+			TRUE : Rx;
+		esac;
+MODULE MEM (proc)
+VAR
+-- main memory data
+	K : 0 .. 31;
+	nextK : 0 .. 31;
+ASSIGN
+	init (K) := 22;
+	init (nextK) := 22;
+	next (K) :=
+		case
+			proc = write-K : 00; --this should never occur
+			TRUE : K;
+		esac;
+	next (nextK) :=
+		case
+			TRUE : K;
+		esac;
+MODULE main
+VAR
+-- system state	
+	proc : {idle, read, write, write-K};
+	memory : MEM (proc);
+	uart0 : UART (proc);
+ASSIGN
+	init (proc) := read;
+	next (proc) :=
+		case
+			TRUE : proc;
+		esac;
+LTLSPEC G (proc != write-K) -> memory.K = memory.nextK
