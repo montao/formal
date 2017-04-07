@@ -2,27 +2,20 @@
 MODULE UART (proc)
 VAR
 	state : {idle, receive, transmit};
-	Rx : unsigned word[8];--vector of bytes
-	Tx : unsigned word[8];
-
+	Rx : unsigned word [ 8 ]; --vector of bytes
+	Tx : unsigned word [ 8 ];
 MODULE MEM (proc)
 VAR
 -- main memory data
-	K : boolean; 
-	data : array 0..3 of boolean;
+	K : unsigned word [ 8 ];
+	data : array 0 .. 7 of array 0 .. 7 of unsigned word [ 8 ];
 ASSIGN
-	init (data[0]) := FALSE;
-	init (data[1]) := K;
-	init (data[2]) := FALSE;
-	
-	--init (data) := {TRUE, TRUE, TRUE};
-	next (data[0]) :=
-		case
-			--proc = write-K : 00; --this should never occur
-			proc = write : data[0];
-			TRUE : data[1];
-		esac;
-	
+init (data[1][0]) := K;
+next (data[1][0]) :=
+	case
+		proc = write : K;
+		TRUE : K;
+	esac;
 MODULE main
 VAR
 -- system state	
@@ -35,5 +28,4 @@ ASSIGN
 		case
 			TRUE : proc;
 		esac;
-LTLSPEC G (proc != write) -> memory.K = next(memory.K)
-	
+LTLSPEC G (proc != write) -> memory.K = next (memory.K)
