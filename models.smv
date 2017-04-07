@@ -1,31 +1,38 @@
 
-MODULE UART (proc)
+MODULE UART (read, write)
 VAR
 	state : {idle, receive, transmit};
 	Rx : unsigned word [ 8 ]; --vector of bytes
 	Tx : unsigned word [ 8 ];
-MODULE MEM (proc)
+MODULE MEM (read, write)
 VAR
 -- main memory data
 	K : unsigned word [ 8 ];
 	data : array 0 .. 7 of array 0 .. 7 of unsigned word [ 8 ];
 ASSIGN
-init (data[1][0]) := K;
-next (data[1][0]) :=
-	case
-		proc = write : K;
-		TRUE : K;
-	esac;
+	init (data[1][0]) := K; --K is a word in the memory
+	next (K) :=
+		case
+			write[1][0] = data[1][0]: data[1][1];
+			TRUE : K;
+		esac;
 MODULE main
 VAR
 -- system state	
-	proc : {idle, read, write};
-	memory : MEM (proc);
-	uart0 : UART (proc);
+read : array 0 .. 7 of array 0 .. 7 of unsigned word [ 8 ]; --read data
+write : array 0 .. 7 of array 0 .. 7 of unsigned word [ 8 ]; --write data
+data : array 0 .. 7 of array 0 .. 7 of unsigned word [ 8 ]; --data
+memory : MEM (read, write); --model instance
+uart0 : UART (read, write); --model instance
 ASSIGN
-	init (proc) := read;
-	next (proc) :=
-		case
-			TRUE : proc;
-		esac;
-LTLSPEC G (proc != write) -> memory.K = next (memory.K)
+init (read) := data;
+init (write) := data;
+next (read[0][0]) :=
+	case
+		TRUE : data[0][0];
+	esac;
+next (write[0][0]) :=
+	case
+		TRUE : data[0][0];
+	esac;
+LTLSPEC G (write != data) -> memory.K = next (memory.K)
