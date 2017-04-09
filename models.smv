@@ -1,45 +1,36 @@
+
 MODULE UART (proc, output, input)
-VAR
-    state : {idle, receive, transmit};
-    Rx : unsigned word [ 8 ]; --vector of bytes
-    Tx : unsigned word [ 8 ];
+VAR	state : {idle, receive, transmit};
+	Rx : unsigned word [ 8 ]; --vector of bytes
+	Tx : unsigned word [ 8 ];
 ASSIGN
-    next (Rx) :=
-        case            
-            proc = read : input;
-            TRUE : (Rx);
-        esac;
-    next (Tx) :=
-        case            
-            proc = write : output;
-            TRUE : (Tx);
-        esac;
-
+	next (Rx) :=
+		case
+			proc = read : input; TRUE : (Rx);
+		esac;
+	next (Tx) :=
+		case
+			proc = write : output; TRUE : (Tx);
+		esac;
+	next (state) :=
+		case
+			proc = write : receive;	proc = read : transmit;	TRUE : idle;
+		esac;
 TRANS
-    proc != read -> next(Rx) = Rx;
-
+	proc != read -> next (Rx) = Rx;
 MODULE MEM (proc, input, output)
-VAR
--- main memory data
-    K : unsigned word [ 8 ]; -- The secret data
-    data : array 0 .. 7 of array 0 .. 7 of unsigned word [ 8 ]; -- The datastore
+VAR K : unsigned word [ 8 ]; data : array 0 .. 7 of array 0 .. 7 of unsigned word [ 8 ];
 ASSIGN
-    init (data[1][0]) := K; --K is a word in the datastore at data[1][0]
+    init (data[1][0]) := K; 
     next (K) :=
         case
             output = data[1][0] : output;
             TRUE : K;
         esac;
 MODULE main
-VAR
--- system state 
-	proc : {idle, read, write};
-    input : unsigned word [ 8 ]; --read data
-    output : unsigned word [ 8 ]; --write data
-    memory : MEM (proc, input, output); --model instance
-    uart0 : UART (proc, input, output); --model instance
-ASSIGN
-    init (input) := memory.data[0][0];
-    init (output) := memory.data[0][0];
-
-LTLSPEC G (output != memory.data[1][0]) -> memory.K = next (memory.K)
+VAR	proc : {idle, read, write}; input : unsigned word [ 8 ]; 
+    output : unsigned word [ 8 ]; 
+    memory : MEM (proc, input, output); 
+    uart0 : UART (proc, input, output); 
+ASSIGN init (input) := memory.data[0][0]; init (output) := memory.data[0][0];
+LTLSPEC G (output != memory.data[1][0]) -> G (memory.K = next (memory.K))
