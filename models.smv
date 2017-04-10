@@ -1,27 +1,51 @@
+
 MODULE UART (proc, output, input)
-VAR	Rx : unsigned word [ 8 ]; Tx : unsigned word [ 8 ];--vector of bytes
+VAR
+	Rx : unsigned word [ 8 ];
+	Tx : unsigned word [ 8 ]; --vector of bytes
 ASSIGN
 	next (Rx) :=
 		case
-			proc = read : input; proc = write : output; TRUE : (Rx);
+			proc = read : input;
+			proc = write : output;
+			TRUE : (Rx);
 		esac;
 	next (Tx) :=
 		case
-			proc = write : output; proc = read : input; TRUE : (Tx);
-		esac;		
+			proc = write : output;
+			proc = read : input;
+			TRUE : (Tx);
+		esac;
 MODULE MEM (proc, input, output)
-VAR K : unsigned word [ 8 ]; data : array 0 .. 7 of array 0 .. 7 of unsigned word [ 8 ];
+VAR
+	K : unsigned word [ 8 ];
+	data : array 0 .. 7 of unsigned word [ 8 ];
 ASSIGN
-    init (data[1][0]) := K; 
-    next (K) :=
-        case
-            output = data[1][0] : output;
-            TRUE : K;
-        esac;
+	init (data[1]) := K;
+	next (K) :=
+		case
+			output = data[1] : output;
+			TRUE : K;
+		esac;
+	next (data[1]) :=
+		case
+			TRUE : data[1];
+		esac;
+	next (data[2]) :=
+		case
+			proc = write : output;
+			proc = read : input;
+			TRUE : data[2];
+		esac;
 MODULE main
-VAR	proc : {idle, read, write}; input : unsigned word [ 8 ]; 
-    output : unsigned word [ 8 ]; 
-    memory : MEM (proc, input, output); 
-    uart0 : UART (proc, input, output); 
-ASSIGN init (input) := memory.data[0][0]; init (output) := memory.data[0][0];
-LTLSPEC G (output != memory.data[1][0]) -> G (memory.K = next (memory.K))
+VAR
+	proc : {idle, read, write};
+	input : unsigned word [ 8 ];
+	output : unsigned word [ 8 ];
+	memory : MEM (proc, input, output);
+	uart0 : UART (proc, input, output);
+ASSIGN
+	init (input) := memory.data[0];
+	init (output) := memory.data[0];
+LTLSPEC G (proc != write -> (memory.K = next (memory.K)))
+LTLSPEC G (output != memory.data[1]) -> G (memory.K = next (memory.K))
