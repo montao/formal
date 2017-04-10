@@ -6,18 +6,16 @@ VAR	state : {idle, receive, transmit};
 ASSIGN
 	next (Rx) :=
 		case
-			proc = read : input; TRUE : (Rx);
+			proc = read : input; proc = write : output; TRUE : (Rx);
 		esac;
 	next (Tx) :=
 		case
-			proc = write : output; TRUE : (Tx);
-		esac;
+			proc = write : output; proc = read : input; TRUE : (Tx);
+		esac;		
 	next (state) :=
 		case
 			proc = write : receive;	proc = read : transmit;	TRUE : idle;
 		esac;
-TRANS
-	proc != read -> next (Rx) = Rx;
 MODULE MEM (proc, input, output)
 VAR K : unsigned word [ 8 ]; data : array 0 .. 7 of array 0 .. 7 of unsigned word [ 8 ];
 ASSIGN
