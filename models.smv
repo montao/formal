@@ -1,8 +1,5 @@
-
 MODULE UART (proc, output, input)
-VAR	state : {idle, receive, transmit};
-	Rx : unsigned word [ 8 ]; --vector of bytes
-	Tx : unsigned word [ 8 ];
+VAR	Rx : unsigned word [ 8 ]; Tx : unsigned word [ 8 ];--vector of bytes
 ASSIGN
 	next (Rx) :=
 		case
@@ -12,10 +9,6 @@ ASSIGN
 		case
 			proc = write : output; proc = read : input; TRUE : (Tx);
 		esac;		
-	next (state) :=
-		case
-			proc = write : receive;	proc = read : transmit;	TRUE : idle;
-		esac;
 MODULE MEM (proc, input, output)
 VAR K : unsigned word [ 8 ]; data : array 0 .. 7 of array 0 .. 7 of unsigned word [ 8 ];
 ASSIGN
