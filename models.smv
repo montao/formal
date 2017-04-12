@@ -1,51 +1,129 @@
 
-MODULE UART (proc, output, input)
+MODULE UART (proc, proc2UARTvalue, proc2UARTAddress, uart2CPU)
 VAR
-	Rx : unsigned word [ 8 ];
-	Tx : unsigned word [ 8 ]; --vector of bytes
+	Rx : array 0 .. 7 of unsigned word [ 8 ]; -- receive from outside
+	Tx : array 0 .. 7 of unsigned word [ 8 ]; --array of bytes
 ASSIGN
-	next (Rx) :=
+	next (Tx[0]) :=
 		case
-			proc = read : input;
-			proc = write : output;
-			TRUE : (Rx);
+			proc = write2UART & proc2UARTAddress = 0 : proc2UARTvalue;
+			TRUE : (Tx[0]);
 		esac;
-	next (Tx) :=
+	next (Tx[1]) :=
 		case
-			proc = write : output;
-			proc = read : input;
-			TRUE : (Tx);
+			proc = write2UART & proc2UARTAddress = 1 : proc2UARTvalue;
+			TRUE : (Tx[1]);
 		esac;
-MODULE MEM (proc, input, output)
+	next (Tx[2]) :=
+		case
+			proc = write2UART & proc2UARTAddress = 2 : proc2UARTvalue;
+			TRUE : (Tx[2]);
+		esac;
+	next (Tx[3]) :=
+		case
+			proc = write2UART & proc2UARTAddress = 3 : proc2UARTvalue;
+			TRUE : (Tx[3]);
+		esac;
+	next (Tx[4]) :=
+		case
+			proc = write2UART & proc2UARTAddress = 4 : proc2UARTvalue;
+			TRUE : (Tx[4]);
+		esac;
+	next (Tx[5]) :=
+		case
+			proc = write2UART & proc2UARTAddress = 05 : proc2UARTvalue;
+			TRUE : (Tx[5]);
+		esac;
+	next (Tx[6]) :=
+		case
+			proc = write2UART & proc2UARTAddress = 6 : proc2UARTvalue;
+			TRUE : (Tx[6]);
+		esac;
+	next (Tx[7]) :=
+		case
+			proc = write2UART & proc2UARTAddress = 7 : proc2UARTvalue;
+			TRUE : (Tx[7]);
+		esac;
+	next (uart2CPU) :=
+		case
+			proc = read2UART & proc2UARTAddress = 0 : Rx[0];
+			proc = read2UART & proc2UARTAddress = 1 : Rx[1];
+			proc = read2UART & proc2UARTAddress = 2 : Rx[2];
+			proc = read2UART & proc2UARTAddress = 3 : Rx[3];
+			proc = read2UART & proc2UARTAddress = 4 : Rx[4];
+			proc = read2UART & proc2UARTAddress = 5 : Rx[5];
+			proc = read2UART & proc2UARTAddress = 6 : Rx[6];
+			proc = read2UART & proc2UARTAddress = 7 : Rx[7];
+			TRUE : -- ??
+			Rx[0]; -- ??
+		esac;
+MODULE MEM (proc, proc2memValue, proc2memAddress, mem2proc)
 VAR
-	K : unsigned word [ 8 ];
 	data : array 0 .. 7 of unsigned word [ 8 ];
 ASSIGN
-	init (data[1]) := K;
-	next (K) :=
+	next (mem2proc) :=
 		case
-			output = data[1] : output;
-			TRUE : K;
+			proc = write & proc2memAddress = 0 : data[0];
+			proc = write & proc2memAddress = 1 : data[1];
+			proc = write & proc2memAddress = 2 : data[2];
+			proc = write & proc2memAddress = 3 : data[3];
+			proc = write & proc2memAddress = 4 : data[4];
+			proc = write & proc2memAddress = 5 : data[5];
+			proc = write & proc2memAddress = 6 : data[6];
+			proc = write & proc2memAddress = 7 : data[7];
+			TRUE : mem2proc;
+		esac;
+	next (data[0]) :=
+		case
+			proc = write & proc2memAddress = 0 : proc2memValue;
+			TRUE : data[0];
 		esac;
 	next (data[1]) :=
 		case
+			proc = write & proc2memAddress = 1 : proc2memValue;
 			TRUE : data[1];
 		esac;
 	next (data[2]) :=
 		case
-			proc = write : output;
-			proc = read : input;
+			proc = write & proc2memAddress = 2 : proc2memValue;
 			TRUE : data[2];
+		esac;
+	next (data[3]) :=
+		case
+			proc = write & proc2memAddress = 3 : proc2memValue;
+			TRUE : data[3];
+		esac;
+	next (data[4]) :=
+		case
+			proc = write & proc2memAddress = 4 : proc2memValue;
+			TRUE : data[4];
+		esac;
+	next (data[5]) :=
+		case
+			proc = write & proc2memAddress = 4 : proc2memValue;
+			TRUE : data[5];
+		esac;
+	next (data[6]) :=
+		case
+			proc = write & proc2memAddress = 4 : proc2memValue;
+			TRUE : data[6];
+		esac;
+	next (data[7]) :=
+		case
+			proc = write & proc2memAddress = 4 : proc2memValue;
+			TRUE : data[7];
 		esac;
 MODULE main
 VAR
-	proc : {idle, read, write};
-	input : unsigned word [ 8 ];
-	output : unsigned word [ 8 ];
-	memory : MEM (proc, input, output);
-	uart0 : UART (proc, input, output);
+	proc : {idle, read, write, read2UART, write2UART};
+	mem2proc : unsigned word [ 8 ];
+	proc2memValue : unsigned word [ 8 ];
+	proc2memAddress : 0 .. 7;
+	uart2CPU : unsigned word [ 8 ];
+	proc2UARTvalue : unsigned word [ 8 ];
+	proc2UARTAddress : 0 .. 7;
+	memory : MEM (proc, proc2memValue, proc2memAddress, mem2proc);
+	uart0 : UART (proc, proc2UARTvalue, proc2UARTAddress, uart2CPU);
 ASSIGN
-	init (input) := memory.data[0];
-	init (output) := memory.data[0];
-LTLSPEC G (proc != write -> (memory.K = next (memory.K)))
-LTLSPEC G (output != memory.data[1]) -> G (memory.K = next (memory.K))
+	LTLSPEC G ! (proc = write & proc2memAddress = 1) -> G (memory.data[1] = next
+	(memory.data[1]))
