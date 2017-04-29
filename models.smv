@@ -114,7 +114,6 @@ VAR
 	address : 0..7;
 	control : unsigned word [ 64 ];
 
-
 ASSIGN
 	init(control) := 0ud64_31;
 	next (address) :=
@@ -138,12 +137,11 @@ VAR
 	dma : DMA (proc, DMAmemAddress, uart0.UART2DMA);
 	
 ASSIGN
-
     
     LTLSPEC G ! (proc = write & proc2memAddress = 1) -> G (memory.data[1] = next
 	(memory.data[1]))
 	
-	LTLSPEC G (proc = write2UART & proc2UARTAddress = 0) -> F ( next(uart0.Tx[0]) = proc2UARTvalue  )
+    LTLSPEC G (proc = write2UART & proc2UARTAddress = 0) -> F ( next(uart0.Tx[0]) = proc2UARTvalue  )
 	
-	LTLSPEC G (proc = setDMAaddress & DMAmemAddress != 1) -> G (memory.data[1] = next
+    LTLSPEC G (proc = setDMAaddress & DMAmemAddress != 1) -> G (memory.data[1] = next
 		(memory.data[1]))
