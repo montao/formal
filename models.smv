@@ -3,7 +3,10 @@ MODULE UART (proc, proc2UARTvalue, proc2UARTAddress, uart2CPU)
 VAR
 	Rx : unsigned word [ 64 ]; -- receive from outside
 	Tx : array 0 .. 7 of unsigned word [ 64 ]; --array of bytes
+	UART2DMA : unsigned word [ 64 ];
+	
 ASSIGN
+	init(UART2DMA) := 0ud64_31;
 	next (Tx[0]) :=
 		case
 			proc = write2UART & proc2UARTAddress = 0 : proc2UARTvalue;
@@ -104,17 +107,43 @@ ASSIGN
 			proc = write & proc2memAddress = 4 : proc2memValue;
 			TRUE : data[7];
 		esac;
+		
+
+MODULE DMA (proc, DMAmemAddress, UART2DMA)
+VAR
+	address : 0..7;
+	control : unsigned word [ 64 ];
+
+
+ASSIGN
+	init(control) := 0ud64_31;
+	next (address) :=
+		case
+			proc = setDMAaddress : DMAmemAddress;
+			TRUE : address;
+		esac;
+		
 MODULE main
 VAR
-	proc : {idle, read, write, read2UART, write2UART};
+	proc : {idle, read, write, read2UART, write2UART, setDMAaddress};
 	mem2proc : unsigned word [ 64 ];
 	proc2memValue : unsigned word [ 64 ];
 	proc2memAddress : 0 .. 7;
+	DMAmemAddress : 0 .. 7;
 	uart2CPU : unsigned word [ 64 ];
 	proc2UARTvalue : unsigned word [ 64 ];
 	proc2UARTAddress : 0 .. 7;
 	memory : MEM (proc, proc2memValue, proc2memAddress, mem2proc);
 	uart0 : UART (proc, proc2UARTvalue, proc2UARTAddress, uart2CPU);
+	dma : DMA (proc, DMAmemAddress, uart0.UART2DMA);
+	
 ASSIGN
-	LTLSPEC G ! (proc = write & proc2memAddress = 1) -> G (memory.data[1] = next
+
+    
+    LTLSPEC G ! (proc = write & proc2memAddress = 1) -> G (memory.data[1] = next
 	(memory.data[1]))
+	
+	LTLSPEC G (proc = write2UART & proc2UARTAddress = 0) -> F ( next(uart0.Tx[0]) = proc2UARTvalue  )
+	
+	LTLSPEC G (proc = setDMAaddress & DMAmemAddress != 1) -> G (memory.data[1] = next
+		(memory.data[1]))
