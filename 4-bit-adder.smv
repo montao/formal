@@ -1,0 +1,43 @@
+
+MODULE bit-adder (in1, in2, cin)
+VAR
+	sum : boolean;
+	cout : boolean;
+ASSIGN
+	next (sum) := (in1 xor in2) xor cin;
+	next (cout) := (in1 & in2) | ((in1 | in2) & cin);
+MODULE adder (in1, in2)
+VAR
+	bit0 : bit-adder (in1[0], in2[0], FALSE);
+	bit1 : bit-adder (in1[1], in2[1], bit0.cout);
+	bit2 : bit-adder (in1[2], in2[2], bit1.cout);
+	bit3 : bit-adder (in1[3], in2[3], bit2.cout);
+DEFINE
+	sum0 := bit0.sum;
+	sum1 := bit1.sum;
+	sum2 := bit2.sum;
+	sum3 := bit3.sum;
+	overflow := bit3.cout;
+MODULE main
+VAR
+	in1 : array 0 .. 3 of boolean;
+	in2 : array 0 .. 3 of boolean;
+	a : adder (in1, in2);
+ASSIGN
+	next (in1[0]) := in1[0];
+	next (in1[1]) := in1[1];
+	next (in1[2]) := in1[2];
+	next (in1[3]) := in1[3];
+	next (in2[0]) := in2[0];
+	next (in2[1]) := in2[1];
+	next (in2[2]) := in2[2];
+	next (in2[3]) := in2[3];
+DEFINE
+	op1 := toint (in1[0]) + 2 * toint (in1[1]) + 4 * toint (in1[2]) + 8 * toint
+	(in1[3]);
+	op2 := toint (in2[0]) + 2 * toint (in2[1]) + 4 * toint (in2[2]) + 8 * toint
+	(in2[3]);
+	sum := toint (a.sum0) + 2 * toint (a.sum1) + 4 * toint (a.sum2) + 8 * toint
+	(a.sum3) + 16 * toint (a.overflow);
+	
+	LTLSPEC G op1 = 5 & op2 = 3 -> F (sum = 8)
