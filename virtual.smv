@@ -2,64 +2,99 @@
 	-- It is typically a content-addressable memory (CAM), in which the search key is the virtual address and the search result is a physical address.
 
 MODULE MMU (proc, pageNumber, offset)
+
 VAR
-	pagetable : array 0 .. 15 of 0..3; -- 16 pages of virtual memory
+	pagetable : array 0 .. 7 of 0..3; -- 8 pages of virtual memory points to 4 pages of physical memory
 	tlb : array 0 .. 7 of array 0..4 of 0..3; -- valid, virtual page, modified, protection, page frame number	
-
-	
-MODULE MEM (proc, mmu, cpu)
-DEFINE
-	secureAddress := 2;
-	securePage := 2;
-VAR
-	data : array 0 .. 3 of array 0..511 of unsigned word [ 8 ]; -- main memory. 4 page frames. page size 512 byte
-	mem2proc : array 0..511 of unsigned word [ 8 ]; -- if CPU reads a page
-
-ASSIGN		
-	next (mem2proc[0]) :=
+ASSIGN 
+	next (pagetable[0]) := -- initiate paging between virtual page 0 and physical page 2
 		case
-			proc = read & mmu.tlb[0][1] = mmu.pageNumber : data[mmu.tlb[0][4]][0]; 
-			proc = read & mmu.tlb[1][1] = mmu.pageNumber : data[mmu.tlb[1][4]][0]; 
-			proc = read & mmu.tlb[2][1] = mmu.pageNumber : data[mmu.tlb[2][4]][0]; 
-			proc = read & mmu.tlb[3][1] = mmu.pageNumber : data[mmu.tlb[3][4]][0]; 
-			proc = read & mmu.tlb[4][1] = mmu.pageNumber : data[mmu.tlb[4][4]][0]; 
-			proc = read & mmu.tlb[5][1] = mmu.pageNumber : data[mmu.tlb[5][4]][0]; 
-			proc = read & mmu.tlb[6][1] = mmu.pageNumber : data[mmu.tlb[6][4]][0]; 
-			proc = read & mmu.tlb[7][1] = mmu.pageNumber : data[mmu.tlb[7][4]][0]; 
-			TRUE : data[0][mmu.pagetable[mmu.pageNumber]]; -- the page frame 
+			TRUE : 2;
+		esac;	
+	next (pagetable[2]) := -- initiate paging between virtual page 2 and physical page 0
+		case
+			TRUE : 0;
+		esac;	
+	next (pagetable[1]) := -- initiate paging between virtual page 1 and physical page 1
+		case
+			TRUE : 1;
+		esac;
+			
+MODULE MEM (proc, mmu, proc2memValue)
+DEFINE
+	secureAddress := 3;
+	securePage := 3;
+VAR
+	data : array 0 .. 3 of array 0..7 of unsigned word [ 8 ]; -- 32 bytes main memory. 4 page frames. page size 8 that should change to 512 byte
+	mem2proc : array 0..3 of unsigned word [ 8 ]; -- if CPU reads a page
+
+ASSIGN	
+	init (mmu.tlb[0][0]) := 0;
+	init (mmu.tlb[1][0]) := 0;
+	init (mmu.tlb[2][0]) := 0;
+	init (mmu.tlb[3][0]) := 0;
+	init (mmu.tlb[4][0]) := 0;
+	init (mmu.tlb[5][0]) := 0;
+	init (mmu.tlb[6][0]) := 0;
+	init (mmu.tlb[7][0]) := 0;
+		
+	next (mem2proc[0]) := -- TLB is not valid yet
+		case
+			proc = read & mmu.tlb[0][0] = 1 & mmu.tlb[0][1] = mmu.pageNumber : data[mmu.tlb[0][4]][0]; 
+			proc = read & mmu.tlb[1][0] = 1 & mmu.tlb[0][1] = mmu.pageNumber : data[mmu.tlb[1][4]][0]; 
+			proc = read & mmu.tlb[2][0] = 1 & mmu.tlb[0][1] = mmu.pageNumber : data[mmu.tlb[2][4]][0]; 
+			proc = read & mmu.tlb[3][0] = 1 & mmu.tlb[0][1] = mmu.pageNumber : data[mmu.tlb[3][4]][0]; 
+			proc = read & mmu.tlb[4][0] = 1 & mmu.tlb[0][1] = mmu.pageNumber : data[mmu.tlb[4][4]][0]; 
+			proc = read & mmu.tlb[5][0] = 1 & mmu.tlb[0][1] = mmu.pageNumber : data[mmu.tlb[5][4]][0]; 
+			proc = read & mmu.tlb[6][0] = 1 & mmu.tlb[0][1] = mmu.pageNumber : data[mmu.tlb[6][4]][0]; 
+			proc = read & mmu.tlb[7][0] = 1 & mmu.tlb[0][1] = mmu.pageNumber : data[mmu.tlb[7][4]][0]; 
+			TRUE : data[mmu.pagetable[0]][0];  --data[0][0]; -- the page frame 
 		esac;
 	next (data[secureAddress][0]) :=
 		case
-			proc = write & mmu.pageNumber = securePage & mmu.offset = 0 : cpu.proc2memValue; -- We verify this doesn't occur
+			proc = write & mmu.pageNumber = securePage & mmu.offset = 0 : proc2memValue; -- We verify this doesn't occur
 			TRUE : data[secureAddress][0];
 		esac;
-	next (data[0][0]) := -- page 0. page size 512 byte
+	next (data[0][0]) := -- page 0. page size 512 byte. first byte. 
 		case
-			proc = write & mmu.pageNumber = 0 & mmu.offset = 0 : cpu.proc2memValue; -- We verify this occurs
+			proc = write & mmu.pageNumber = 2 & mmu.offset = 0 : proc2memValue; -- We verify this occurs
 			TRUE : data[0][0];
 		esac;
-		
+	next (data[1][0]) := -- page 1. page size 512 byte. first byte. 
+		case
+			proc = write & mmu.pageNumber = 1 & mmu.offset = 0 : proc2memValue; -- We verify this occurs
+			TRUE : data[1][0];
+		esac;
+	next (data[2][0]) := -- page 2. page size 512 byte. first byte. 
+		case
+			proc = write & mmu.pageNumber = 0 & mmu.offset = 0 : proc2memValue; -- We verify this occurs
+			TRUE : data[2][0];
+		esac;
+				
 -- The CPU module can represent different states of the CPU
 -- and which page and data that we should verify	
 MODULE CPU
 DEFINE
-	proc2memValue := 0uo8_66;
 	pageNumber := 0;
 VAR
-	--registers : array 0 .. 16 of unsigned word [16];
-	proc : {idle, read, write};
+	registers : array 0 .. 16 of unsigned word [16];
+	proc : {read, write};
 
 MODULE main
-
+DEFINE
+	offset := 0;
+	proc2memValue := 0ud8_255;
 VAR
-	pageNumber : 0 .. 3;
-	offset : 0..15;
-	--proc2memValue : 0..255;
+	pageNumber : 0 .. 2;
+	-- proc2memValue : unsigned word [ 8 ]; FIXME: Why can't this be nondeterministic?
 	cpu : CPU;	
 	mmu : MMU (cpu. proc, pageNumber, offset);
-	memory : MEM (cpu. proc, mmu, cpu);
+	memory : MEM (cpu. proc, mmu, proc2memValue);
 ASSIGN
-	LTLSPEC G (pageNumber != memory.securePage & offset != 0) -> G
-	(memory.data[memory.secureAddress][0] = next (memory.data[memory.secureAddress][0]))
+	init(mmu.pagetable[0]) := 2;
+	init(mmu.pagetable[1]) := 1;
 	
-	LTLSPEC G (cpu.proc = write & offset = 0 & pageNumber = cpu.pageNumber) -> F memory.data[cpu.pageNumber][0] = cpu.proc2memValue
+	LTLSPEC G pageNumber != memory.securePage -> G
+	(memory.data[memory.secureAddress][0] = next (memory.data[memory.secureAddress][0]))
+
+	LTLSPEC G cpu.proc = write -> F next(memory.data[mmu.pagetable[pageNumber]][0]) = proc2memValue
