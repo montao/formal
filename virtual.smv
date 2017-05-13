@@ -1,11 +1,8 @@
-	--A TLB has a small fixed number of slots that contain page table entries, which map virtual addresses to physical addresses. 
-	-- It is typically a content-addressable memory (CAM), in which the search key is the virtual address and the search result is a physical address.
-
 MODULE MMU (proc, pageNumber, offset)
 
 VAR
 	pagetable : array 0 .. 4 of 0..7; -- 5 pages of virtual memory
-	tlb : array 0 .. 7 of array 0..4 of 0..3; -- valid, virtual page, modified, protection, page frame number	
+	
 ASSIGN 
 	next (pagetable[0]) := -- initiate paging between virtual page 0 and physical page 3
 		case
@@ -27,51 +24,16 @@ ASSIGN
 		case
 			TRUE : 4;
 		esac;	
-	next (tlb[0][0]) := -- TLB first entry
-		case
-		    proc = write & pageNumber = 2 & offset = 0 : 0;
-			TRUE : 0;
-		esac;
-	next (tlb[0][1]) := -- TLB VPN
-		case
-		    proc = write & pageNumber = 2 & offset = 0 : 0;
-			TRUE : 0;
-		esac;
-	next (tlb[0][4]) := -- TLB page frame number
-		case
-		    proc = write & pageNumber = 2 & offset = 0 : 0;
-			TRUE : 0;
-		esac;		
+	
 MODULE MEM (proc, mmu, proc2memValue)
 DEFINE
 	secureAddress := 6;
 	securePage := 6;
 VAR
-	data : array 0 .. 7 of array 0..15 of unsigned word [ 8 ]; -- A simple 128-byte address space
-	mem2proc : array 0..15 of unsigned word [ 8 ]; -- If CPU reads a page
+	data : array 0 .. 7 of array 0..3 of unsigned word [ 4 ]; -- A simple 128-byte address space
 
 ASSIGN	
-	init (mmu.tlb[0][0]) := 0;
-	init (mmu.tlb[1][0]) := 0;
-	init (mmu.tlb[2][0]) := 0;
-	init (mmu.tlb[3][0]) := 0;
-	init (mmu.tlb[4][0]) := 0;
-	init (mmu.tlb[5][0]) := 0;
-	init (mmu.tlb[6][0]) := 0;
-	init (mmu.tlb[7][0]) := 0;
-		
-	next (mem2proc[0]) := -- TLB is not valid yet
-		case
-			proc = read & mmu.tlb[0][0] = 1 & mmu.tlb[0][1] = mmu.pageNumber : data[mmu.tlb[0][4]][0]; 
-			proc = read & mmu.tlb[1][0] = 1 & mmu.tlb[0][1] = mmu.pageNumber : data[mmu.tlb[1][4]][0]; 
-			proc = read & mmu.tlb[2][0] = 1 & mmu.tlb[0][1] = mmu.pageNumber : data[mmu.tlb[2][4]][0]; 
-			proc = read & mmu.tlb[3][0] = 1 & mmu.tlb[0][1] = mmu.pageNumber : data[mmu.tlb[3][4]][0]; 
-			proc = read & mmu.tlb[4][0] = 1 & mmu.tlb[0][1] = mmu.pageNumber : data[mmu.tlb[4][4]][0]; 
-			proc = read & mmu.tlb[5][0] = 1 & mmu.tlb[0][1] = mmu.pageNumber : data[mmu.tlb[5][4]][0]; 
-			proc = read & mmu.tlb[6][0] = 1 & mmu.tlb[0][1] = mmu.pageNumber : data[mmu.tlb[6][4]][0]; 
-			proc = read & mmu.tlb[7][0] = 1 & mmu.tlb[0][1] = mmu.pageNumber : data[mmu.tlb[7][4]][0]; 
-			TRUE : data[0][0]; -- FIXME: take it from page table instead of main memory
-		esac;
+
 	next (data[secureAddress][0]) :=
 		case
 			proc = write & mmu.pageNumber = securePage & mmu.offset = 0 : proc2memValue; -- We verify this doesn't occur
@@ -106,34 +68,25 @@ ASSIGN
 MODULE CPU
 DEFINE
 	offset := 0; -- offset is not implemented
-	-- proc2memValue := 0uo8_42; -- the data that we verify is written
 VAR
-	-- registers are not yet implemented
+	-- registers are not implemented
 	-- registers : array 0 .. 16 of unsigned word [16];
 	proc : {read, write};
-    proc2memValue : unsigned word [8];
+    proc2memValue : unsigned word [4];
+ASSIGN	
 
+	next (proc2memValue) := proc2memValue;
+		next (proc) := proc;
 MODULE main
 	
 VAR
 	pageNumber : 0 .. 4; -- we vary the page numbers during the verification	
-	-- in the verification proc2memValue is always a constant 0uo8_42
 	cpu : CPU;	
-	mmu : MMU (cpu. proc, pageNumber, cpu.offset);
-	memory : MEM (cpu. proc, mmu, cpu.proc2memValue);
+	mmu : MMU (cpu.proc, pageNumber, cpu.offset);
+	memory : MEM (cpu.proc, mmu, cpu.proc2memValue);
 ASSIGN	
-	init(mmu.pagetable[0]) := 3;
-	init(mmu.pagetable[1]) := 7;
-	init(mmu.pagetable[2]) := 5;
-	init(mmu.pagetable[3]) := 2;
-	init(mmu.pagetable[4]) := 4;
+	 next (pageNumber) := pageNumber;
 		
-	LTLSPEC G cpu.proc = write & pageNumber = 0 -> F next(memory.data[mmu.pagetable[0]][0]) = cpu.proc2memValue
-	LTLSPEC G cpu.proc = write & pageNumber = 1 -> F next(memory.data[mmu.pagetable[1]][0]) = cpu.proc2memValue
-	LTLSPEC G cpu.proc = write & pageNumber = 2 -> F next(memory.data[mmu.pagetable[2]][0]) = cpu.proc2memValue
-	LTLSPEC G cpu.proc = write & pageNumber = 3 -> F next(memory.data[mmu.pagetable[3]][0]) = cpu.proc2memValue
-	LTLSPEC G cpu.proc = write & pageNumber = 4 -> F next(memory.data[mmu.pagetable[4]][0]) = cpu.proc2memValue
-	
-	LTLSPEC G mmu.pagetable[pageNumber] != memory.secureAddress -> G
-	 (memory.data[memory.secureAddress][0] = next (memory.data[memory.secureAddress][0]))
+	 LTLSPEC G ((cpu.proc = write) -> (next(memory.data[mmu.pagetable[pageNumber]][0]) = cpu.proc2memValue))
+	 LTLSPEC G mmu.pagetable[pageNumber] != memory.secureAddress -> memory.data[memory.secureAddress][0] = next (memory.data[memory.secureAddress][0])
 	
