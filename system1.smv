@@ -1,9 +1,11 @@
 
-MODULE UART (proc, proc2UARTvalue, proc2UARTAddress, uart2CPU, uart2mem,
-uart2memValue)
+MODULE UART (proc, proc2UARTvalue, proc2UARTAddress)
 VAR
 	Rx : unsigned word [ 8 ]; -- byte from the outside
-	Tx : array 0 .. 7 of unsigned word [ 8 ]; --array of bytes that is written from the internal memory
+	Tx : array 0 .. 8 of unsigned word [ 8 ]; --array of bytes that is written from the internal memory
+	uart2CPU : unsigned word [ 8 ]; -- the data the UART writes to the CPU
+	uart2mem : unsigned word [ 8 ]; -- the data the UART writes to RAM (no DMA)
+	uart2memValue : unsigned word [ 8 ]; -- external		
 ASSIGN
 	next (Tx[0]) :=
 		case
@@ -51,45 +53,56 @@ ASSIGN
 			TRUE : Rx;
 		esac;
 
-		-- memory model
-	-- the secure address is address 513 
+		-- memory model 
 
-MODULE MEM (proc, proc2memValue, proc2memAddress, mem2proc, uart2memValue)
-DEFINE
-	secureAddress := 513;
+MODULE MMU (proc, proc2memValue, proc2memAddress)
 VAR
-	data : array 0 .. 1023 of unsigned word [ 8 ]; -- 2 kilobyte memory
+	pages : array 0 .. 3 of 0 .. 3;
+	mem2read : 0 .. 3;
+ASSIGN
+	next (pages[0]) :=
+		case
+			proc = write : pages[proc2memAddress];
+			TRUE : pages[0];
+		esac;
+	next (mem2read) :=
+		case
+			proc = read : pages[proc2memAddress];
+			TRUE : mem2read;
+		esac;
+MODULE MEM (proc,  uart2memValue, mmu)
+DEFINE
+	secureAddress := 3;
+VAR
+	data : array 0 .. 3 of unsigned word [ 8 ];
+	mem2proc : unsigned word [ 8 ];
 ASSIGN
 	next (mem2proc) :=
 		case
-			proc = read : data[proc2memAddress];
+			proc = read : data[mmu.mem2read];
 			TRUE : mem2proc;
 		esac;
 	next (data[secureAddress]) :=
 		case
-			proc = write & proc2memAddress = secureAddress : proc2memValue;
+			proc = write & mmu.proc2memAddress = secureAddress : mmu.proc2memValue;
 			TRUE : data[secureAddress];
 		esac;
 MODULE main
 VAR
 	proc : {idle, read, write, read2UART, write2UART, setDMAaddress};
 	-- addresses are array indices
-	proc2memAddress : 0 .. 1023;
-	proc2UARTAddress : 0 .. 1023;
+	proc2memAddress : 0 .. 3;
+	proc2UARTAddress : 0 .. 3;
 	-- data is array of words
-	mem2proc : unsigned word [ 8 ];
 	proc2memValue : unsigned word [ 8 ]; -- the data the CPU writes to memory
-	uart2CPU : unsigned word [ 8 ]; -- the data the UART writes to the CPU
-	uart2mem : unsigned word [ 8 ]; -- the data the UART writes to RAM (no DMA)
 	proc2UARTvalue : unsigned word [ 8 ]; -- when the CPU writes to the UART (no DMA)
-	uart2memValue : unsigned word [ 8 ]; -- external		
-	memory : MEM (proc, proc2memValue, proc2memAddress, mem2proc, uart2mem);
-	uart0 : UART (proc, proc2UARTvalue, proc2UARTAddress, uart2CPU, uart2mem,
-	uart2memValue);
+	
+	mmu : MMU (proc, proc2memValue, proc2memAddress);
+	memory : MEM (proc, uart2mem, mmu);
+	uart0 : UART (proc, proc2UARTvalue, proc2UARTAddress);
 ASSIGN
---if we write to the UART then after a while it will appear on Tx
-	LTLSPEC G (proc = write2UART & proc2UARTAddress = 0) -> F (next (uart0.Tx[0]) =
-	proc2UARTvalue)
+	next (proc2UARTAddress) := proc2UARTAddress;
+	LTLSPEC G (proc = write2UART -> (next (uart0.Tx[proc2UARTAddress]) =
+	proc2UARTvalue))
 	-- if we write to the UART but not to the secure memory, then the secure memory is constant
-	LTLSPEC G (proc2memAddress != memory.secureAddress) -> G
-	(memory.data[memory.secureAddress] = next (memory.data[memory.secureAddress]))	
+	LTLSPEC G (proc2memAddress != memory.secureAddress) -> (memory.data[memory.secureAddress] = next (memory.data[memory.secureAddress]))	
